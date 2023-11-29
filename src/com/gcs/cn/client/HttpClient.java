@@ -3,9 +3,13 @@ package com.gcs.cn.client;
 import static java.nio.channels.SelectionKey.OP_READ;
 
 import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.SocketAddress;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
@@ -24,6 +28,7 @@ public class HttpClient {
 	static int timeout = 3000;
 	static long sequenceNum = 0;
 	static int ackCount = 0;
+	private boolean isHandshake;
 	
 	private String[] headers;
 	private boolean verbose;
@@ -155,6 +160,7 @@ public class HttpClient {
 			
 			SocketAddress routerAddress = new InetSocketAddress(host, 3000);
 			InetSocketAddress serverAddress = new InetSocketAddress(host, port);
+			isHandshake = handshake(routerAddress, serverAddress.getHostName(), serverAddress.getPort(), channel);
 			sequenceNum++;
 			Packet p = new Packet.Builder().setType(0).setSequenceNumber(sequenceNum).setPortNumber(serverAddress.getPort())
 					.setPeerAddress(serverAddress.getAddress()).setPayload(request.getBytes())
@@ -275,5 +281,108 @@ public class HttpClient {
 		sendRequestToSocket(request, host);
 
 	}
+	
+	public static boolean handshake(SocketAddress routerAddress, String serverHost, int serverPort, DatagramChannel channel) {
+        boolean handShake = false;
+
+        // Always perform a handshake before the initial request.
+        while (!handShake) {
+            boolean sendSyn = syn(routerAddress, serverHost, serverPort, "msg", channel);
+
+            // Only return true when the whole thing comes back. Check at each step.
+            if (sendSyn) {
+                boolean sendAck = ack(routerAddress, serverHost, serverPort, "msg", channel);
+                if (sendAck) {
+                    System.out.println("--------------------HANDSHAKE COMPLETE-----------------");
+                    handShake = true;
+                }
+            }
+        }
+
+        return true;
+    }
+	
+	public static boolean ack(SocketAddress routerAddress, String serverAddr, int serverPort, String message, DatagramChannel channel) {
+        while (true) {
+            try {
+                InetAddress peerIp = InetAddress.getByName(serverAddr);
+//                DatagramSocket conn = new DatagramSocket();
+                
+//                conn.setSoTimeout(5000); // Set timeout in milliseconds
+
+                // Packet type 3 (ACK). Have the server recognize the packet_type and return a 2 (SYN-ACK)
+                Packet p = new Packet(3, 1, peerIp, serverPort, message.getBytes(StandardCharsets.UTF_8));
+                System.out.println("[CLIENT] - Sending ACK");
+//                DatagramPacket sendPacket = new DatagramPacket(p.toBytes(), p.toBytes().length, InetAddress.getByName(routerAddr), routerPort);
+                
+                channel.send(p.toBuffer(), routerAddress);
+
+                // Receive a response within the timeout
+                System.out.println("[CLIENT] - Waiting For A Response - (Should be an ACK)");
+//                byte[] receiveData = new byte[1024];
+//                DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+                //conn.receive(receivePacket);
+                ByteBuffer buf = ByteBuffer.allocate(Packet.MAX_LEN);
+                channel.receive(buf);
+                p = Packet.fromBuffer(buf);
+
+                System.out.println("[CLIENT] - Response Received. Is it a SYN-ACK? (Packet of Type 3)");
+                System.out.println("[CLIENT] - PacketType = " + p.getType());
+                System.out.println("[CLIENT] - Yes, Got an ACK back. Proceed with request.");
+                return true;
+
+            } catch (SocketTimeoutException e) {
+                System.out.println("[CLIENT] - No response after 5s");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+	
+	public static boolean syn(SocketAddress routerAddress, String serverAddr, int serverPort, String message, DatagramChannel channel) {
+        while (true) {
+            try {
+                InetAddress peerIp = InetAddress.getByName(serverAddr);
+                //DatagramSocket conn = new DatagramSocket();
+                //conn.setSoTimeout(5000); // Set timeout in milliseconds
+
+                Packet p = new Packet(1, 1, peerIp, serverPort, message.getBytes());
+                System.out.println(" \n ");
+                System.out.println("-------------------BEGINNING HANDSHAKE-----------------");
+                System.out.println("[CLIENT] - Sending SYN - (PacketType = 1)");
+//                DatagramPacket sendPacket = new DatagramPacket(p.toBytes(), p.toBytes().length, InetAddress.getByName(routerAddress), routerPort);
+                channel.send(p.toBuffer(), routerAddress);
+                //conn.send(sendPacket);
+                
+
+                // Receive a response within the timeout
+                //conn.setSoTimeout(5000);
+                System.out.println("[CLIENT] - Waiting For A Response - (Should be an SYN-ACK)");
+//                byte[] receiveData = new byte[1024];
+//                DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+//                conn.receive(receivePacket);
+                ByteBuffer buf = ByteBuffer.allocate(Packet.MAX_LEN);
+                channel.receive(buf);
+                p = Packet.fromBuffer(buf);
+//                p = Packet.fromBytes(receivePacket.getData());
+
+                System.out.println("[CLIENT] - Response Received. Is it a SYN-ACK? (Packet Type of 2)");
+                System.out.println("[CLIENT] - PacketType = " + p.getType());
+
+                if (p.getType() == 2) {
+                    System.out.println("[CLIENT] - Yes, Got a SYN-ACK back, send back ACK (Packet Type of 3)");
+                    // Just send packet of type 3 here and don't get anything back.
+                    return true;
+                }
+
+            } catch (SocketTimeoutException e) {
+                System.out.println("[CLIENT] - No response after 5s for Packet 1");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
 
 }

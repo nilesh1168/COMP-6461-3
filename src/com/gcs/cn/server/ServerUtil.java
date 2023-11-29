@@ -104,6 +104,7 @@ public class ServerUtil {
 		if (router != null) {
 			buf.flip();
 			Packet packet = Packet.fromBuffer(buf);
+			
 			buf.flip();
 			requestPayload = new String(packet.getPayload(), UTF_8);
 			String response = ServerUtil.parseAndReturnResponse(requestPayload);

@@ -1,6 +1,7 @@
 package com.gcs.cn.server;
 
 import java.io.IOException;
+import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.ServerSocketChannel;
@@ -14,7 +15,7 @@ public class HttpServer implements Runnable{
 
 
 //    private ServerSocketChannel socket;
-    private DatagramChannel channel;
+    private DatagramSocket conn;
     public HttpServer(boolean verbose, String directory, int port) {
     	if(port > 0)
     		HttpServer.port = port;
@@ -27,15 +28,14 @@ public class HttpServer implements Runnable{
 	@Override
     public void run() {
         try {
-        	channel = DatagramChannel.open();
+        	conn = new DatagramSocket(port);
 //            socket = ServerSocketChannel.open();
             System.out.println("Starting HTTPServer at localhost:" + port);
-            channel.bind(new InetSocketAddress(port));
 //            socket.bind(new InetSocketAddress(port));
 //            while(true){
 //                SocketChannel connection = socket.accept();
 //                Thread t = new Thread(new HttpRequestHandler(connection, lock));
-                Thread t = new Thread(new HttpRequestHandler(channel, lock));
+                Thread t = new Thread(new HttpRequestHandler(conn, lock));
                 t.start();
 //            }
         }catch (IOException exception){

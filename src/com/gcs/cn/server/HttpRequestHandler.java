@@ -2,6 +2,7 @@ package com.gcs.cn.server;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
@@ -18,7 +19,7 @@ import com.gcs.cn.packet.Packet;
 public class HttpRequestHandler implements Runnable {
 
 //	private SocketChannel connection;
-	private DatagramChannel channel;
+	private DatagramSocket conn;
 	private static Object lock;
 	static String format = "text/plain";
 	static String body;
@@ -32,40 +33,34 @@ public class HttpRequestHandler implements Runnable {
 //		HttpRequestHandler.lock = lock;
 //	}
 	
-	public HttpRequestHandler(DatagramChannel channel, Object lock) {
-		this.channel = channel;
+	public HttpRequestHandler(DatagramSocket conn, Object lock) {
+		this.conn = conn;
 		HttpRequestHandler.lock = lock;
 	}
 
 	@Override
 	public void run() {
 		System.out.println("--------------------------------");
-		try {
-//			System.out.println("New client from" + connection.getLocalAddress());
-			System.out.println("New client from" + channel.getLocalAddress());
-		} catch (IOException e) {
-			throw new RuntimeException(e);
-		}
+		//			System.out.println("New client from" + connection.getLocalAddress());
+		System.out.println("New client from" + conn.getLocalAddress());
 		System.out.println("--------------------------------");
 
 		try {
+			while(true) {				
 //			String request = ServerUtil.getRequest(connection);
-			Packet response = ServerUtil.getRequest(channel);
-			
-			SocketAddress routerAddr = new InetSocketAddress(response.getPeerAddress(), response.getPeerPort());
-			channel.send(response.toBuffer(),routerAddr);
+				Packet response = ServerUtil.getRequest(conn);
+				
+//				SocketAddress routerAddr = new InetSocketAddress(response.getPeerAddress(), response.getPeerPort());
+//				channel.send(response.toBuffer(),routerAddr);
 //			connection.write(ByteBuffer.wrap(response.getBytes()));
-			
-			System.out.println("Request Completed");
+				
+				System.out.println("Request Completed");
+			}
 
 		} catch (IOException e) {
 			e.printStackTrace();
 		} finally {
-			try {
-				channel.close();
-			} catch (IOException e) {
-				throw new RuntimeException(e);
-			}
+			conn.close();
 		}
 
 	}

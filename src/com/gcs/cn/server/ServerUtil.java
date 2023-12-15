@@ -601,6 +601,7 @@ public class ServerUtil {
 			} else {
 				file = filePath;
 			}
+			System.out.println("Append: "+ append);
 			FileWriter fileWriter = new FileWriter(file.toString(), append);
 			fileWriter.write(fileBody);
 			fileWriter.close();

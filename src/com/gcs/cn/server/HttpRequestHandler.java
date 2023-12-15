@@ -40,14 +40,15 @@ public class HttpRequestHandler implements Runnable {
 
 	@Override
 	public void run() {
-		System.out.println("--------------------------------");
-		//			System.out.println("New client from" + connection.getLocalAddress());
-		System.out.println("New client from" + conn.getLocalAddress());
-		System.out.println("--------------------------------");
+//		System.out.println("--------------------------------");
+//		//			System.out.println("New client from" + connection.getLocalAddress());
+//		System.out.println("New client from" + conn.getLocalAddress());
+//		System.out.println("--------------------------------");
 
 		try {
-			while(true) {				
+//			while(true) {				
 //			String request = ServerUtil.getRequest(connection);
+			
 				Packet response = ServerUtil.getRequest(conn);
 				
 //				SocketAddress routerAddr = new InetSocketAddress(response.getPeerAddress(), response.getPeerPort());
@@ -55,14 +56,13 @@ public class HttpRequestHandler implements Runnable {
 //			connection.write(ByteBuffer.wrap(response.getBytes()));
 				
 				System.out.println("Request Completed");
-			}
+//			}
 
 		} catch (IOException e) {
 			e.printStackTrace();
 		} finally {
 			conn.close();
 		}
-
 	}
 
 	public static String getHandler() {
@@ -193,7 +193,7 @@ public class HttpRequestHandler implements Runnable {
 				} else {
 					synchronized (lock) {
 						if(body!=null) {							
-							ServerUtil.createAndWriteToFile(fileName, body, false);
+							ServerUtil.createAndWriteToFile(fileName, body, true);
 							body = "File has been successfully updated";
 							return ServerUtil.responseGenerator(204, body, null);
 						}

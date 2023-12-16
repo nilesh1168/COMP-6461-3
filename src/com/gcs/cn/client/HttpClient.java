@@ -1,6 +1,5 @@
 package com.gcs.cn.client;
 
-import static java.nio.channels.SelectionKey.OP_READ;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.io.IOException;
@@ -12,24 +11,15 @@ import java.net.MalformedURLException;
 import java.net.SocketAddress;
 import java.net.SocketTimeoutException;
 import java.net.URL;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.channels.DatagramChannel;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
-import javax.swing.plaf.synth.SynthScrollPaneUI;
 
 import com.gcs.cn.packet.Packet;
 
-import ch.qos.logback.core.util.SystemInfo;
 
 public class HttpClient {
 	public static final String EOM = "<EOM>";
@@ -56,7 +46,6 @@ public class HttpClient {
 
 	private static final int PORT = 3000;
 
-	private static final int BUFFER_SIZE = 1024;
 
 	public HttpClient(String url, String[] headers, boolean verbose, String postBody, String oPFile,
 			boolean redirectionAllowed, String file) {
@@ -139,27 +128,6 @@ public class HttpClient {
 
 	}
 
-	private static void resend(DatagramChannel channel, Packet p, SocketAddress routerAddress) throws IOException {
-		channel.send(p.toBuffer(), routerAddress);
-		System.out.println(new String(p.getPayload()));
-		if (new String(p.getPayload()).equals("Got the Message")) {
-			ackCount++;
-		}
-		channel.configureBlocking(false);
-		Selector selector = Selector.open();
-		channel.register(selector, OP_READ);
-		selector.select(timeout);
-
-		Set<SelectionKey> keys = selector.selectedKeys();
-		if (keys.isEmpty() && ackCount < 10) {
-			System.out.println("Time is over");
-			System.out.println("Retrying");
-			resend(channel, p, routerAddress);
-		} else {
-			return;
-		}
-	}
-
 	private static void sendUdpMessages(List<String> dataChunks, DatagramSocket conn, InetSocketAddress serverAddress,
 			SocketAddress routerAddress, int[] arr, StringBuilder dataString) throws IOException {
 		int[] windows = { 0, 0, 0, 0, 0 };
@@ -171,67 +139,35 @@ public class HttpClient {
 			}
 
 			String chunk = dataChunks.get(seqNum);
-//			System.out.println("length of chunk in bytes: "+chunk.getBytes().length);
 			Packet p = new Packet(0, seqNum, serverAddress.getAddress(), serverAddress.getPort(), chunk.getBytes());
 
-//			System.out.println("sendUdpMessages chunk for"); 
 			byte[] packetBytes = p.toBytes();
-//			System.err.println("packet in bytes:"+ packetBytes.length);
 			DatagramPacket packet = new DatagramPacket(packetBytes, packetBytes.length, routerAddress);
 
 			try {
 				conn.send(packet);
-//				channel.send(p.toBuffer(), routerAddress);
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
 		}
 
-//        socket.setSoTimeout(timeout);
-//		channel.configureBlocking(false);
-//		Selector selector = Selector.open();
-//		channel.register(selector, OP_READ);
-//		selector.select(5000);
-//		Set<SelectionKey> keys = selector.selectedKeys();
-//		if (keys.isEmpty()) {
-//			System.out
-//					.println("[CLIENT] - No response after " + timeout + " for Packet " + windows[windows.length - 1]);
-//			sendUdpMessages(dataChunks, channel, serverAddress, routerAddress, windows);
-//		}
 		try{
 			while (true) {
 				byte[] receiveData = new byte[1024];
 
 				DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-//				System.out.println("client Waiting to receive:");
 				conn.setSoTimeout(timeout);
 				conn.receive(receivePacket);
 				byte[] data = new byte[receivePacket.getLength()];
 				System.arraycopy(receivePacket.getData(), receivePacket.getOffset(), data, 0,
 						receivePacket.getLength());
-//				ByteBuffer buf = ByteBuffer.allocate(Packet.MAX_LEN).order(ByteOrder.BIG_ENDIAN);
-//				SocketAddress router = channel.receive(buf);
-//
-//				buf.flip();
-				Packet p = Packet.fromBytes(data); // this is giving error
-//				buf.flip();
-
-//                InetAddress senderAddress = receivePacket.getAddress();
-//                int senderPort = receivePacket.getPort();
-//                Packet p = Packet.fromBytes(receivePacket.getData());
-
-//				System.out.println("Sender: " + senderAddress + ":" + senderPort);
-//				System.out.println("Router: " + senderAddress);
-//				System.out.println("Packet: " + p);
-//				System.out.println("Received from Server Payload: " + new String(p.getPayload()));
+				Packet p = Packet.fromBytes(data);
 
 				if (p.getType() == 3) {
 					windows[(int) p.getSequenceNumber()] = 1;
 					boolean allAcked = true;
 					for (int seqNum = base; seqNum < Math.min(base + windowSize, dataChunks.size()); seqNum++) {
-//						System.out.println("Inside Ack");
 						if (windows[seqNum] == 0) {
-//							System.out.println("Inside Ack");
 							allAcked = false;
 							break;
 						}
@@ -242,18 +178,13 @@ public class HttpClient {
 
 				}
 				else{
-//					System.out.println("inside payload from Server");
 					int currSeqNum = (int) p.getSequenceNumber();
-//					System.out.println("sequence number: "+currSeqNum);
 					String payLoad = new String(p.getPayload(), UTF_8);
 					dataReceived[currSeqNum] = new StringBuffer();
 					dataReceived[currSeqNum].append(payLoad);
 
-//					System.out.println("Payload: " + new String(p.getPayload()));
 
 					p = p.toBuilder().setType((byte) 3).setPayload("sending ACK from Client!".getBytes()).create();
-//					channel.send(p.toBuffer(), routerAddress);
-//                    p.setType((byte) 3);
 					
 					byte[] responseBytes = p.toBytes();
 
@@ -266,42 +197,19 @@ public class HttpClient {
 
 
 					if (dataReceived[currSeqNum].toString().endsWith(EOM)) {
-//						System.out.println("inside EOM datarvd");
 						for (int i = 0; i <= currSeqNum; i++) {
 							dataString.append(dataReceived[i].toString());
-//							System.out.println("inside EOM FOR datarvd ");
 							if (dataReceived[i] == null) {
 								allDataReceived = false;
 								break;
 							}
 						}
 						if (allDataReceived) {
-//							System.out.println("Heelo this is final "+dataString.toString());
 							conn.close();
 							break;
 						}
 					}
 
-//					for (int i = 1; i <= dataReceived.length; i++) {
-//						if (dataReceived[i] == null) {
-//							allDataReceived = false;
-//							break;
-//						} else {
-//							dataString.append(dataReceived[currSeqNum]);
-//							System.out.println(dataString);
-//							if (allDataReceived && dataReceived[i].toString().equals(EOM)) {
-//								p.toBuilder().setType((byte) 3).setPayload("My Request Fulfilled".getBytes()).create();
-//								System.out.println(dataString);
-//								channel.send(p.toBuffer(), routerAddress);
-//								allDone=true;
-//								break;
-//							}
-//							
-//						}
-//						
-//					}
-//					if(allDone)
-//						break;
 				}
 			}
 		} catch (SocketTimeoutException e) {
@@ -325,63 +233,24 @@ public class HttpClient {
 		if (port == -1) {
 			port = PORT;
 		}
-//		try (DatagramChannel channel = DatagramChannel.open()) {
 		try {
 
 			SocketAddress routerAddress = new InetSocketAddress("localhost", 3000);
 			InetSocketAddress serverAddress = new InetSocketAddress("localhost", 8080);
 
 			DatagramSocket conn = new DatagramSocket();
-//			conn.bind(routeAddress);
 			handshake = handshake(routerAddress, serverAddress.getHostName(), serverAddress.getPort(), conn);
 			if (handshake) {
-//				System.err.println("req len before <EOM>"+ request.length());
 				request = request + EOM;
 
-//				System.out.println("request len afer EOM: "+request.length());
 
 				List<String> dataChunks = new ArrayList<>();
 				for (int i = 0; i < request.length(); i += 1013) {
-//					System.out.println("math min value for "+ i +" "+Math.min(i + 1013, request.length()));
-//					System.out.println("substring: "+request.substring(i, Math.min(i + 1013, request.length())));
 					dataChunks.add(request.substring(i, Math.min(i + 1013, request.length())));
 				}
-//				for (String string : dataChunks) {
-//					System.out.println("in chunks");
-//					System.out.println(string.length());
-//				}
-//		SocketAddress endpoint = new InetSocketAddress(host, port);
-//		try (SocketChannel socket = SocketChannel.open()) {
-//			socket.connect(endpoint);
-
-				// sendUDPMsges to server of the request to handle
 				StringBuilder dataString = new StringBuilder();
 				sendUdpMessages(dataChunks, conn, serverAddress, routerAddress, null, dataString);
 
-//				Packet p = new Packet.Builder().setType(0).setSequenceNumber(sequenceNum)
-//						.setPortNumber(serverAddress.getPort()).setPeerAddress(serverAddress.getAddress())
-//						.setPayload(request.getBytes()).create();
-//
-//				channel.send(p.toBuffer(), routerAddress);
-
-//				channel.configureBlocking(false);
-//				Selector selector = Selector.open();
-//				channel.register(selector, OP_READ);
-//				selector.select(timeout);
-//				Set<SelectionKey> keys = selector.selectedKeys();
-//				if (keys.isEmpty()) {
-//					System.out.println("Time is over");
-//					System.out.println("Retrying");
-//					resend(channel, p, routerAddress);
-//				}
-
-//				ByteBuffer buf = ByteBuffer.allocate(Packet.MAX_LEN);
-//				SocketAddress router = channel.receive(buf);
-//
-//				buf.flip();
-//				Packet resp = Packet.fromBuffer(buf);
-//				String line = new String(resp.getPayload(), StandardCharsets.UTF_8).trim();
-//				String line = new String(responseBuffArr, StandardCharsets.UTF_8).trim();
 				System.out.println("***********RESPONSE***********");
 				
 				String finalDataString = dataString.substring(0,dataString.length()-5);
@@ -409,23 +278,6 @@ public class HttpClient {
 
 				conn.close();
 			} // need to handle if there is no handshake
-
-			// write the request in
-//			byte[] bs = request.getBytes(StandardCharsets.UTF_8);
-//			ByteBuffer byteBuffer = ByteBuffer.wrap(bs);
-//			socket.write(byteBuffer);
-
-			// read the response from the socket
-//			ByteBuffer responseBuff = ByteBuffer.allocate(BUFFER_SIZE);
-
-//			while (socket.read(responseBuff) > 0) {
-
-			// We can trim the array before we decode
-//				byte[] responseBuffArr = responseBuff.array();
-
-			// Split response for verbosity
-
-//			}
 
 		} catch (IOException exception) {
 			exception.printStackTrace();
@@ -509,7 +361,6 @@ public class HttpClient {
 		while (true) {
 			try {
 				InetAddress peerIp = InetAddress.getByName(serverAddr);
-//                DatagramSocket conn = new DatagramSocket();
 
 				// Packet type 3 (ACK). Have the server recognize the packet_type and return a 2
 				// (SYN-ACK)
@@ -519,16 +370,6 @@ public class HttpClient {
 
 				conn.send(sendPacket);
 
-//				channel.configureBlocking(false);
-//				Selector selector = Selector.open();
-//				channel.register(selector, OP_READ);
-//				selector.select(5000);
-////
-//				Set<SelectionKey> keys = selector.selectedKeys();
-//				if (keys.isEmpty()) {
-//					System.out.println("Time is over");
-//					return false;
-//				}
 				conn.setSoTimeout(5000); // Set timeout in milliseconds
 				// Receive a response within the timeout
 				System.out.println("[CLIENT] - Waiting For A Response - (Should be an ACK)");
@@ -540,9 +381,6 @@ public class HttpClient {
 						receivePacket.getLength());
 				p = Packet.fromBytes(data);
 
-//				ByteBuffer buf = ByteBuffer.allocate(Packet.MAX_LEN);
-//				channel.receive(buf);
-//				buf.flip();
 
 				System.out.println("[CLIENT] - Response Received. Is it a SYN-ACK? (Packet of Type 3)");
 				System.out.println("[CLIENT] - PacketType = " + p.getType());
@@ -564,26 +402,13 @@ public class HttpClient {
 		while (true) {
 			try {
 				InetAddress peerIp = InetAddress.getByName(serverAddr);
-				// conn.setSoTimeout(5000); // Set timeout in milliseconds
 
 				Packet p = new Packet(1, 1, peerIp, serverPort, message.getBytes());
 				System.out.println(" \n ");
 				System.out.println("-------------------BEGINNING HANDSHAKE-----------------");
 				System.out.println("[CLIENT] - Sending SYN - (PacketType = 1)");
-//				conn.send(p.toBuffer(), routerAddress);
 				DatagramPacket sendPacket = new DatagramPacket(p.toBytes(), p.toBytes().length, routerAddress);
 				conn.send(sendPacket);
-
-//				channel.configureBlocking(false);
-//				Selector selector = Selector.open();
-//				channel.register(selector, OP_READ);
-//				selector.select(5000);
-////
-//				Set<SelectionKey> keys = selector.selectedKeys();
-//				if (keys.isEmpty()) {
-//					System.out.println("Time is over");
-//					return false;
-//				}
 
 				// Receive a response within the timeout
 				conn.setSoTimeout(5000);
@@ -596,11 +421,6 @@ public class HttpClient {
 				System.arraycopy(receivePacket.getData(), receivePacket.getOffset(), data, 0,
 						receivePacket.getLength());
 				p = Packet.fromBytes(data);
-//				
-//                ByteBuffer buf = ByteBuffer.allocate(Packet.MAX_LEN);
-//				conn.receive(buf);
-//				buf.flip();
-//				p = Packet.fromBuffer(buf);
 
 				System.out.println("[CLIENT] - Response Received. Is it a SYN-ACK? (Packet Type of 2)");
 				System.out.println("[CLIENT] - PacketType = " + p.getType());

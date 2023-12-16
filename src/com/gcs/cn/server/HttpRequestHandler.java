@@ -3,22 +3,14 @@ package com.gcs.cn.server;
 import java.io.File;
 import java.io.IOException;
 import java.net.DatagramSocket;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.net.SocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.DatagramChannel;
-import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.gcs.cn.packet.Packet;
 
 public class HttpRequestHandler implements Runnable {
 
-//	private SocketChannel connection;
 	private DatagramSocket conn;
 	private static Object lock;
 	static String format = "text/plain";
@@ -27,11 +19,6 @@ public class HttpRequestHandler implements Runnable {
 	public static String query;
 	static boolean isGet = false;
 	static boolean isPost = false;
-
-//	public HttpRequestHandler(SocketChannel connection, Object lock) {
-//		this.connection = connection;
-//		HttpRequestHandler.lock = lock;
-//	}
 	
 	public HttpRequestHandler(DatagramSocket conn, Object lock) {
 		this.conn = conn;
@@ -49,11 +36,8 @@ public class HttpRequestHandler implements Runnable {
 //			while(true) {				
 //			String request = ServerUtil.getRequest(connection);
 			
-				Packet response = ServerUtil.getRequest(conn);
+				ServerUtil.getRequest(conn);
 				
-//				SocketAddress routerAddr = new InetSocketAddress(response.getPeerAddress(), response.getPeerPort());
-//				channel.send(response.toBuffer(),routerAddr);
-//			connection.write(ByteBuffer.wrap(response.getBytes()));
 				
 				System.out.println("Request Completed");
 //			}
